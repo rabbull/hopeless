@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rabbull/future"
+	future "github.com/rabbull/hopeless"
 )
 
 func init() {

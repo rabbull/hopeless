@@ -36,7 +36,7 @@ func (f *futureImpl[T]) Wait() {
 }
 
 func New[T any](job func() (T, error)) Future[T] {
-	return NewWithScheduler(&NativeScheduler{}, job)
+	return NewWithScheduler(DefaultScheduler, job)
 }
 
 func NewWithScheduler[T any](scheduler Scheduler, job func() (T, error)) Future[T] {
@@ -46,7 +46,7 @@ func NewWithScheduler[T any](scheduler Scheduler, job func() (T, error)) Future[
 	}
 
 	future.wg.Add(1)
-	scheduler.Dispatch(func() {
+	scheduler.Launch(func() {
 		defer future.wg.Done()
 
 		val, err := job()

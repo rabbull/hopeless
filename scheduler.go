@@ -1,8 +1,10 @@
 package future
 
 type Scheduler interface {
-	Dispatch(func())
+	Launch(func())
 }
+
+var DefaultScheduler Scheduler = NewNativeScheduler()
 
 type NativeScheduler struct{}
 
@@ -10,6 +12,6 @@ func NewNativeScheduler() Scheduler {
 	return &NativeScheduler{}
 }
 
-func (s *NativeScheduler) Dispatch(fn func()) {
+func (s *NativeScheduler) Launch(fn func()) {
 	go fn()
 }
