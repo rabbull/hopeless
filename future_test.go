@@ -14,17 +14,25 @@ func init() {
 }
 
 func TestHopeless(t *testing.T) {
-	fut := future.New(func() (uint64, error) {
-		return DangerousFibonacci(20)
-	}).Then(func(val uint64) {
-		t.Logf("fibonacci(20)=6765=%v", val)
-	}).Catch(func(err error) {
-		t.Logf("fibonacci(20) failed: err=%v", err)
-	})
-
-	t.Logf("we have no hope")
-	fut.Wait()
-	time.Sleep(time.Millisecond * 100)
+	_, _ = future.Then(
+		future.Then(
+			future.New(func() (uint64, error) {
+				return DangerousFibonacci(20)
+			}), func(fibonacci uint64, err error) (uint64, error) {
+				if err != nil {
+					t.Logf("fibonacci failed: %v", err)
+					return 0, err
+				}
+				t.Logf("fibonacci finished: %v", fibonacci)
+				return fibonacci % 7, nil
+			}), func(mod uint64, err error) (any, error) {
+			if err != nil {
+				t.Logf("fibonacci mod failed: %v", err)
+				return nil, err
+			}
+			t.Logf("fibonacci mod 7: %v", mod)
+			return nil, nil
+		}).Wait()
 }
 
 func DangerousFibonacci(n uint64) (uint64, error) {

@@ -5,8 +5,6 @@ import (
 )
 
 type Future[T any] interface {
-	Then(func(res T)) Future[T]
-	Catch(func(err error)) Future[T]
 	Wait() (T, error)
 }
 
@@ -16,26 +14,6 @@ type futureImpl[T any] struct {
 
 	scheduler Scheduler
 	wg        sync.WaitGroup
-}
-
-func (f *futureImpl[T]) Then(do func(res T)) Future[T] {
-	f.scheduler.Launch(func() {
-		f.wg.Wait()
-		if f.err == nil {
-			do(f.payload)
-		}
-	})
-	return f
-}
-
-func (f *futureImpl[T]) Catch(do func(err error)) Future[T] {
-	f.scheduler.Launch(func() {
-		f.wg.Wait()
-		if f.err != nil {
-			do(f.err)
-		}
-	})
-	return f
 }
 
 func (f *futureImpl[T]) Wait() (T, error) {
@@ -67,6 +45,12 @@ func NewWithScheduler[T any](scheduler Scheduler, job func() (T, error)) Future[
 	})
 
 	return &future
+}
+
+func Then[T, S any](f Future[T], handler func(T, error) (S, error)) Future[S] {
+	return New(func() (S, error) {
+		return handler(f.Wait())
+	})
 }
 
 type Tuple[T, S any] struct {
