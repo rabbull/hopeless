@@ -57,22 +57,8 @@ func Then[T, S any](f Future[T], handler func(Result[T]) Result[S]) Future[S] {
 	})
 }
 
-func Bind[T, S any](t Future[T], s Future[S]) Future[*Tuple[T, S]] {
-	return New(func() Result[*Tuple[T, S]] {
-
-		tRes := t.Wait()
-		if tRes.Err() != nil {
-			return Err[*Tuple[T, S]](tRes.Err())
-		}
-
-		sRes := s.Wait()
-		if sRes.Err() != nil {
-			return Err[*Tuple[T, S]](sRes.Err())
-		}
-
-		return Ok(&Tuple[T, S]{
-			A: tRes.Val(),
-			B: sRes.Val(),
-		})
+func Join[T, S any](t Future[T], s Future[S]) Future[Tuple[T, S]] {
+	return New(func() Result[Tuple[T, S]] {
+		return JoinResult(t.Wait(), s.Wait())
 	})
 }

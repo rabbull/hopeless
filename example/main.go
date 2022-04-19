@@ -45,8 +45,8 @@ func LoadBar() future.Future[Bar] {
 func PackFooBar() future.Future[*FooBar] {
 	log.Printf("pack foobar: now=%v", now())
 	return future.Then(
-		future.Bind(LoadFoo(), LoadBar()),
-		func(res future.Result[*future.Tuple[Foo, Bar]]) future.Result[*FooBar] {
+		future.Join(LoadFoo(), LoadBar()),
+		func(res future.Result[future.Tuple[Foo, Bar]]) future.Result[*FooBar] {
 			if res.Err() != nil {
 				return future.Err[*FooBar](res.Err())
 			}
@@ -60,7 +60,7 @@ func PackFooBar() future.Future[*FooBar] {
 }
 
 func main() {
-	foobar, err := PackFooBar().Wait()
+	foobar, err := PackFooBar().Wait().Result()
 	if err != nil {
 		log.Fatalf("failed to pack foobar: err=%v", err)
 	}
