@@ -1,8 +1,11 @@
 package hopeless
 
 import (
+	"errors"
 	"sync"
 )
+
+var ErrPanic = errors.New("unknown panic")
 
 type Future[T any] interface {
 	Wait() (T, error)
@@ -35,6 +38,15 @@ func NewWithScheduler[T any](scheduler Scheduler, job func() (T, error)) Future[
 	future.wg.Add(1)
 	scheduler.Launch(func() {
 		defer future.wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				if err, ok := err.(error); ok {
+					future.err = err
+				} else {
+					future.err = ErrPanic
+				}
+			}
+		}()
 
 		val, err := job()
 		if err != nil {
