@@ -14,25 +14,33 @@ func init() {
 }
 
 func TestHopeless(t *testing.T) {
-	_, _ = future.Then(
+	future.Then(
 		future.Then(
-			future.New(func() (uint64, error) {
-				return DangerousFibonacci(20)
-			}), func(fibonacci uint64, err error) (uint64, error) {
+			future.New(func() future.Result[uint64] {
+				n, err := DangerousFibonacci(20)
 				if err != nil {
-					t.Logf("fibonacci failed: %v", err)
-					return 0, err
+					return future.Err[uint64](err)
 				}
-				t.Logf("fibonacci finished: %v", fibonacci)
-				return fibonacci % 7, nil
-			}), func(mod uint64, err error) (any, error) {
-			if err != nil {
-				t.Logf("fibonacci mod failed: %v", err)
-				return nil, err
+				return future.Ok(n)
+			}),
+			func(fibonacciResult future.Result[uint64]) future.Result[uint8] {
+				if fibonacciResult.Err() != nil {
+					t.Logf("fibonacci failed: %v", fibonacciResult.Err())
+					return future.Err[uint8](fibonacciResult.Err())
+				}
+				t.Logf("fibonacci succeeded: %v", fibonacciResult.Val())
+				return future.Ok(uint8(fibonacciResult.Val() % 7))
+			},
+		),
+		func(modResult future.Result[uint8]) future.Result[any] {
+			if modResult.Err() != nil {
+				t.Logf("fibonacci mod failed: %v", modResult.Err())
+				return future.Err[any](modResult.Err())
 			}
-			t.Logf("fibonacci mod 7: %v", mod)
-			return nil, nil
-		}).Wait()
+			t.Logf("fibonacci mod 7: %v", modResult.Val())
+			return future.Ok[any](nil)
+		},
+	).Wait()
 }
 
 func DangerousFibonacci(n uint64) (uint64, error) {

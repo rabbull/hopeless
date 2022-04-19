@@ -1,91 +1,78 @@
 package hopeless
 
-import (
-	"errors"
-	"sync"
-)
-
-var ErrPanic = errors.New("unknown panic")
+import "sync"
 
 type Future[T any] interface {
-	Wait() (T, error)
+	Wait() Result[T]
 }
 
 type futureImpl[T any] struct {
-	payload T
-	err     error
+	result Result[T]
 
 	scheduler Scheduler
 	wg        sync.WaitGroup
 }
 
-func (f *futureImpl[T]) Wait() (T, error) {
+func (f *futureImpl[T]) Wait() Result[T] {
 	f.wg.Wait()
-	return f.payload, f.err
+	return f.result
 }
 
-func New[T any](job func() (T, error)) Future[T] {
+func New[T any](job func() Result[T]) Future[T] {
 	return NewWithScheduler(DefaultScheduler, job)
 }
 
-func NewWithScheduler[T any](scheduler Scheduler, job func() (T, error)) Future[T] {
+func NewWithScheduler[T any](scheduler Scheduler, job func() Result[T]) Future[T] {
 	future := futureImpl[T]{
-		err:       nil,
 		scheduler: scheduler,
 		wg:        sync.WaitGroup{},
 	}
 
 	future.wg.Add(1)
 	scheduler.Launch(func() {
+
+		// release lock
 		defer future.wg.Done()
+
+		// panic recovery
 		defer func() {
 			if err := recover(); err != nil {
 				if err, ok := err.(error); ok {
-					future.err = err
+					future.result = Err[T](err)
 				} else {
-					future.err = ErrPanic
+					future.result = Err[T](ErrPanic)
 				}
 			}
 		}()
 
-		val, err := job()
-		if err != nil {
-			future.err = err
-		} else {
-			future.payload = val
-		}
+		future.result = job()
 	})
 
 	return &future
 }
 
-func Then[T, S any](f Future[T], handler func(T, error) (S, error)) Future[S] {
-	return New(func() (S, error) {
+func Then[T, S any](f Future[T], handler func(Result[T]) Result[S]) Future[S] {
+	return New(func() Result[S] {
 		return handler(f.Wait())
 	})
 }
 
-type Tuple[T, S any] struct {
-	A T
-	B S
-}
-
 func Bind[T, S any](t Future[T], s Future[S]) Future[*Tuple[T, S]] {
-	return New(func() (*Tuple[T, S], error) {
+	return New(func() Result[*Tuple[T, S]] {
 
-		t, err := t.Wait()
-		if err != nil {
-			return nil, err
+		tRes := t.Wait()
+		if tRes.Err() != nil {
+			return Err[*Tuple[T, S]](tRes.Err())
 		}
 
-		s, err := s.Wait()
-		if err != nil {
-			return nil, err
+		sRes := s.Wait()
+		if sRes.Err() != nil {
+			return Err[*Tuple[T, S]](sRes.Err())
 		}
 
-		return &Tuple[T, S]{
-			A: t,
-			B: s,
-		}, nil
+		return Ok(&Tuple[T, S]{
+			A: tRes.Val(),
+			B: sRes.Val(),
+		})
 	})
 }

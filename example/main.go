@@ -24,21 +24,21 @@ type FooBar struct {
 
 func LoadFoo() future.Future[Foo] {
 	log.Printf("load foo: now=%v", now())
-	return future.New(func() (Foo, error) {
+	return future.New(func() future.Result[Foo] {
 		time.Sleep(time.Millisecond * 13)
 
 		log.Printf("foo loaded: now=%v", now())
-		return "foo", nil
+		return future.Ok(Foo("foo"))
 	})
 }
 
 func LoadBar() future.Future[Bar] {
 	log.Printf("load bar: now=%v", now())
-	return future.New(func() (Bar, error) {
+	return future.New(func() future.Result[Bar] {
 		time.Sleep(time.Millisecond * 7)
 
 		log.Printf("bar loaded: now=%v", now())
-		return math.Pi, nil
+		return future.Ok(Bar(math.Pi))
 	})
 }
 
@@ -46,14 +46,15 @@ func PackFooBar() future.Future[*FooBar] {
 	log.Printf("pack foobar: now=%v", now())
 	return future.Then(
 		future.Bind(LoadFoo(), LoadBar()),
-		func(tuple *future.Tuple[Foo, Bar], err error) (*FooBar, error) {
-			if err != nil {
-				return nil, err
+		func(res future.Result[*future.Tuple[Foo, Bar]]) future.Result[*FooBar] {
+			if res.Err() != nil {
+				return future.Err[*FooBar](res.Err())
 			}
-			return &FooBar{
-				Foo: tuple.A,
-				Bar: tuple.B,
-			}, nil
+
+			return future.Ok(&FooBar{
+				Foo: res.Val().A,
+				Bar: res.Val().B,
+			})
 		},
 	)
 }
