@@ -44,15 +44,18 @@ func LoadBar() future.Future[Bar] {
 
 func PackFooBar() future.Future[*FooBar] {
 	log.Printf("pack foobar: now=%v", now())
-	return future.Then(future.Bind(LoadFoo(), LoadBar()), func(tuple *future.Tuple[Foo, Bar], err error) (*FooBar, error) {
-		if err != nil {
-			return nil, err
-		}
-		return &FooBar{
-			Foo: tuple.A,
-			Bar: tuple.B,
-		}, nil
-	})
+	return future.Then(
+		future.Bind(LoadFoo(), LoadBar()),
+		func(tuple *future.Tuple[Foo, Bar], err error) (*FooBar, error) {
+			if err != nil {
+				return nil, err
+			}
+			return &FooBar{
+				Foo: tuple.A,
+				Bar: tuple.B,
+			}, nil
+		},
+	)
 }
 
 func main() {
