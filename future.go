@@ -1,9 +1,13 @@
 package hopeless
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 type Future[T any] interface {
 	Wait() Result[T]
+	WaitWithTimeout(t time.Duration) Result[T]
 }
 
 type futureImpl[T any] struct {
@@ -13,9 +17,37 @@ type futureImpl[T any] struct {
 	wg        sync.WaitGroup
 }
 
+func (f *futureImpl[T]) recover() {
+	if err := recover(); err != nil {
+		if err, ok := err.(error); ok {
+			f.result = Err[T](err)
+		} else {
+			f.result = Err[T](ErrUnknownPanic)
+		}
+	}
+}
+
 func (f *futureImpl[T]) Wait() Result[T] {
 	f.wg.Wait()
 	return f.result
+}
+
+func (f *futureImpl[T]) WaitWithTimeout(t time.Duration) Result[T] {
+
+	res := make(chan Result[T])
+	defer close(res)
+
+	go func() {
+		defer f.recover()
+		res <- f.Wait()
+	}()
+
+	select {
+	case x := <-res:
+		return x
+	case <-time.After(t):
+		return Err[T](ErrTimeout)
+	}
 }
 
 func New[T any](job func() Result[T]) Future[T] {
@@ -35,15 +67,7 @@ func NewWithScheduler[T any](scheduler Scheduler, job func() Result[T]) Future[T
 		defer future.wg.Done()
 
 		// panic recovery
-		defer func() {
-			if err := recover(); err != nil {
-				if err, ok := err.(error); ok {
-					future.result = Err[T](err)
-				} else {
-					future.result = Err[T](ErrPanic)
-				}
-			}
-		}()
+		defer future.recover()
 
 		future.result = job()
 	})
